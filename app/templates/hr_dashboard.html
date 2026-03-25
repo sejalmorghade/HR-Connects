@@ -1,0 +1,43 @@
+{% extends 'base.html' %}
+
+{% block title %}HR Dashboard{% endblock %}
+
+{% block content %}
+<h2>HR Dashboard</h2>
+<a href="{% url 'post_job' %}" class="btn btn-primary mb-3">Post New Job</a>
+{% for job_app in job_applications %}
+<div class="card mb-4">
+    <div class="card-header">
+        <h5>{{ job_app.job.title }} - {{ job_app.job.company }}</h5>
+    </div>
+    <div class="card-body">
+        <h6>Applicants:</h6>
+        {% for app in job_app.applications %}
+        <div class="border p-2 mb-2">
+            <p><strong>{{ app.student.user.get_full_name|default:app.student.user.username }}</strong> - Match: {{ app.match_score }}%</p>
+            <p>Email: {{ app.student.user.email }}</p>
+            <p>Phone: {{ app.student.phone_number }}</p>
+            <p>Degree: {{ app.student.degree }} {{ app.student.branch }}</p>
+            <p>College: {{ app.student.college }}, Passing Year: {{ app.student.passing_year }}</p>
+            <p>CGPA: {{ app.student.cgpa }}</p>
+            <p>Skills: {{ app.student.skills }}</p>
+            <p>Preferred Location: {{ app.student.preferred_location }}</p>
+            {% if app.student.linkedin_profile %}
+            <p>LinkedIn: <a href="{{ app.student.linkedin_profile }}" target="_blank">{{ app.student.linkedin_profile }}</a></p>
+            {% endif %}
+            {% if app.student.github_profile %}
+            <p>GitHub: <a href="{{ app.student.github_profile }}" target="_blank">{{ app.student.github_profile }}</a></p>
+            {% endif %}
+            {% if app.student.resume %}
+            <a href="{{ app.student.resume.url }}" target="_blank" class="btn btn-sm btn-secondary">View Resume</a>
+            {% endif %}
+        </div>
+        {% empty %}
+        <p>No applicants yet.</p>
+        {% endfor %}
+    </div>
+</div>
+{% empty %}
+<p>No jobs posted yet.</p>
+{% endfor %}
+{% endblock %}

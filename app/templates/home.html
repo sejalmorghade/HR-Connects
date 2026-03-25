@@ -1,0 +1,13 @@
+{% extends 'base.html' %}
+
+{% block title %}Home{% endblock %}
+
+{% block content %}
+<div class="text-center">
+    <h1>Welcome to AI-Driven Campus Placement Platform</h1>
+    <p>Connect students and recruiters intelligently.</p>
+    {% if not user.is_authenticated %}
+        <a href="{% url 'register' %}" class="btn btn-primary">Get Started</a>
+    {% endif %}
+</div>
+{% endblock %}

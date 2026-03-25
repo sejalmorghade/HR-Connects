@@ -1,0 +1,45 @@
+{% extends 'base.html' %}
+
+{% block title %}Post Job{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <h2>Post New Job</h2>
+        {% if form.errors %}
+        <div class="alert alert-danger">
+            <ul>
+                {% for field in form %}
+                    {% for error in field.errors %}
+                        <li>{{ error }}</li>
+                    {% endfor %}
+                {% endfor %}
+                {% for error in form.non_field_errors %}
+                    <li>{{ error }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+        <form method="post">
+            {% csrf_token %}
+            <div class="mb-3">
+                <label for="{{ form.title.id_for_label }}" class="form-label">Job Title</label>
+                {{ form.title }}
+            </div>
+            <div class="mb-3">
+                <label for="{{ form.skills_required.id_for_label }}" class="form-label">Required Skills (comma-separated)</label>
+                {{ form.skills_required }}
+            </div>
+            <div class="mb-3">
+                <label for="{{ form.education_required.id_for_label }}" class="form-label">Education Required</label>
+                {{ form.education_required }}
+            </div>
+            <div class="mb-3">
+                <label for="{{ form.keywords.id_for_label }}" class="form-label">Keywords (comma-separated)</label>
+                {{ form.keywords }}
+            </div>
+            <button type="submit" class="btn btn-primary">Post Job</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

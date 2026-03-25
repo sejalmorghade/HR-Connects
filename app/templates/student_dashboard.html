@@ -1,0 +1,57 @@
+{% extends 'base.html' %}
+
+{% block title %}Student Dashboard{% endblock %}
+
+{% block content %}
+<h2>Student Dashboard</h2>
+<a href="{% url 'update_student_profile' %}" class="btn btn-secondary mb-3">Update Profile</a>
+<div class="row">
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">Profile</div>
+            <div class="card-body">
+                <p><strong>Name:</strong> {{ student.user.first_name }} {{ student.user.last_name }}</p>
+                <p><strong>Email:</strong> {{ student.user.email }}</p>
+                <p><strong>Phone:</strong> {{ student.phone_number }}</p>
+                <p><strong>Address:</strong> {{ student.address }}</p>
+                <p><strong>Date of Birth:</strong> {{ student.date_of_birth }}</p>
+                <p><strong>Gender:</strong> {{ student.get_gender_display }}</p>
+                <p><strong>Degree:</strong> {{ student.degree }}</p>
+                <p><strong>Branch:</strong> {{ student.branch }}</p>
+                <p><strong>College:</strong> {{ student.college }}</p>
+                <p><strong>Passing Year:</strong> {{ student.passing_year }}</p>
+                <p><strong>CGPA:</strong> {{ student.cgpa }}</p>
+                <p><strong>Skills:</strong> {{ student.skills }}</p>
+                <p><strong>Preferred Location:</strong> {{ student.preferred_location }}</p>
+                {% if student.linkedin_profile %}
+                <p><strong>LinkedIn:</strong> <a href="{{ student.linkedin_profile }}" target="_blank">{{ student.linkedin_profile }}</a></p>
+                {% endif %}
+                {% if student.github_profile %}
+                <p><strong>GitHub:</strong> <a href="{{ student.github_profile }}" target="_blank">{{ student.github_profile }}</a></p>
+                {% endif %}
+                <p><strong>Resume:</strong> {% if student.resume %}{{ student.resume.name }}{% else %}Not uploaded{% endif %}</p>
+                <div class="progress">
+                    <div class="progress-bar" role="progressbar" style="width: {{ profile_strength }}%">{{ profile_strength }}%</div>
+                </div>
+                <small>Profile Strength</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-8">
+        <h3>Matched Jobs</h3>
+        {% for match in matched_jobs %}
+        <div class="card mb-3">
+            <div class="card-body">
+                <h5 class="card-title">{{ match.job.title }}</h5>
+                <p class="card-text">{{ match.job.company }}</p>
+                <p>Skills: {{ match.job.skills_required }}</p>
+                <p>Match: {{ match.score }}% - <span class="badge bg-{% if match.label == 'Highly Relevant' %}success{% elif match.label == 'Moderate Match' %}warning{% else %}danger{% endif %}">{{ match.label }}</span></p>
+                <a href="{% url 'apply_job' match.job.id %}" class="btn btn-primary">Apply</a>
+            </div>
+        </div>
+        {% empty %}
+        <p>No matched jobs yet.</p>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}
