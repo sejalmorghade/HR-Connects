@@ -41,7 +41,7 @@ class Student(models.Model):
                     pdf_reader = PyPDF2.PdfReader(f)
                     text = ''
                     for page in pdf_reader.pages:
-                        text += page.extract_text()
+                        text += page.extract_text() or ''
                     return text.lower()
             elif self.resume.name.endswith('.txt'):
                 with self.resume.open('r') as f:
@@ -49,6 +49,34 @@ class Student(models.Model):
         except:
             return ''
         return ''
+
+    @property
+    def extracted_skills(self):
+        analysis, _ = ResumeAnalysis.objects.get_or_create(student=self)
+        if analysis.extracted_skills:
+            return [skill.strip().lower() for skill in analysis.extracted_skills.split(',') if skill.strip()]
+        return []
+
+    @property
+    def combined_skills(self):
+        manual = [skill.strip().lower() for skill in self.skills.split(',') if skill.strip()]
+        extracted = self.extracted_skills
+        return sorted(set(manual + extracted))
+
+    def update_resume_skills(self):
+        text = self.get_resume_text()
+        if not text:
+            return []
+
+        job_terms = set(re.findall(r"[A-Za-z+#+]+", text.lower()))
+        common_skills = {'python', 'django', 'sql', 'javascript', 'react', 'java', 'c++', 'machine', 'data', 'nlp'}
+        extracted = [word for word in job_terms if word in common_skills]
+
+        analysis, _ = ResumeAnalysis.objects.get_or_create(student=self)
+        analysis.raw_text = text
+        analysis.extracted_skills = ", ".join(sorted(set(extracted)))
+        analysis.save()
+        return extracted
 
 class Job(models.Model):
     title = models.CharField(max_length=200)
@@ -63,10 +91,100 @@ class Job(models.Model):
         return self.title
 
 class Application(models.Model):
+    STATUS_APPLIED = 'Applied'
+    STATUS_SHORTLISTED = 'Shortlisted'
+    STATUS_INTERVIEW = 'Interview Scheduled'
+    STATUS_SELECTED = 'Selected'
+    STATUS_REJECTED = 'Rejected'
+
+    STATUS_CHOICES = [
+        (STATUS_APPLIED, 'Applied'),
+        (STATUS_SHORTLISTED, 'Shortlisted'),
+        (STATUS_INTERVIEW, 'Interview Scheduled'),
+        (STATUS_SELECTED, 'Selected'),
+        (STATUS_REJECTED, 'Rejected'),
+    ]
+
     student = models.ForeignKey(Student, on_delete=models.CASCADE)
     job = models.ForeignKey(Job, on_delete=models.CASCADE)
-    match_score = models.FloatField()
+    match_score = models.FloatField(default=0)
+    status = models.CharField(max_length=30, choices=STATUS_CHOICES, default=STATUS_APPLIED)
     applied_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    contacted_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        unique_together = ('student', 'job')
 
     def __str__(self):
-        return f"{self.student} applied to {self.job}"
+        return f"{self.student} applied to {self.job} [{self.status}]"
+
+
+class Connection(models.Model):
+    application = models.OneToOneField(Application, on_delete=models.CASCADE)
+    hr_contacted = models.BooleanField(default=False)
+    contacted_at = models.DateTimeField(null=True, blank=True)
+    contact_note = models.TextField(blank=True)
+
+    def __str__(self):
+        return f"Connection for {self.application}"
+
+
+class Interview(models.Model):
+    MODE_ONLINE = 'Online'
+    MODE_OFFLINE = 'Offline'
+    STATUS_PENDING = 'Pending'
+    STATUS_CONFIRMED = 'Confirmed'
+    STATUS_RESCHEDULE_REQUESTED = 'Reschedule Requested'
+    STATUS_COMPLETED = 'Completed'
+
+    STATUS_CHOICES = [
+        (STATUS_PENDING, 'Pending'),
+        (STATUS_CONFIRMED, 'Confirmed'),
+        (STATUS_RESCHEDULE_REQUESTED, 'Reschedule Requested'),
+        (STATUS_COMPLETED, 'Completed'),
+    ]
+
+    application = models.OneToOneField(Application, on_delete=models.CASCADE)
+    scheduled_at = models.DateTimeField()
+    mode = models.CharField(max_length=8, choices=[(MODE_ONLINE, 'Online'), (MODE_OFFLINE, 'Offline')], default=MODE_ONLINE)
+    status = models.CharField(max_length=24, choices=STATUS_CHOICES, default=STATUS_PENDING)
+    notes = models.TextField(blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Interview for {self.application} at {self.scheduled_at}"
+
+
+class ResumeAnalysis(models.Model):
+    student = models.OneToOneField(Student, on_delete=models.CASCADE)
+    raw_text = models.TextField(blank=True)
+    extracted_skills = models.TextField(blank=True)  # comma-separated
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"ResumeAnalysis for {self.student}"
+
+
+class Message(models.Model):
+    sender = models.ForeignKey(User, related_name='sent_messages', on_delete=models.CASCADE)
+    receiver = models.ForeignKey(User, related_name='received_messages', on_delete=models.CASCADE)
+    job = models.ForeignKey(Job, on_delete=models.SET_NULL, null=True, blank=True)
+    content = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    is_read = models.BooleanField(default=False)
+
+    def __str__(self):
+        return f"{self.sender.username} -> {self.receiver.username}: {self.content[:40]}"
+
+
+class Notification(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    message = models.CharField(max_length=255)
+    is_read = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.user.username}: {self.message[:40]}"
+

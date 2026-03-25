@@ -3,7 +3,8 @@ from django.contrib.auth import login, authenticate, logout
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from .models import Profile, Student, Job, Application
+from django.utils import timezone
+from .models import Profile, Student, Job, Application, Connection, Interview, Message, Notification, ResumeAnalysis
 from .forms import StudentForm, JobForm
 import re
 
@@ -40,6 +41,43 @@ def get_match_label(score):
         return "Moderate Match"
     else:
         return "Low Match"
+
+# Recommendation engine
+def recommend_jobs_for_student(student, top_n=5):
+    jobs = Job.objects.all()
+    scored = []
+    for job in jobs:
+        score = calculate_match_score(student, job)
+        if score > 0:
+            scored.append((job, score))
+    scored.sort(key=lambda kv: kv[1], reverse=True)
+    return [{'job': job, 'score': score, 'label': get_match_label(score)} for job, score in scored[:top_n]]
+
+# HR candidate ranking for each job
+def rank_applicants_for_job(job):
+    applications = list(Application.objects.filter(job=job).select_related('student__user'))
+    def candidate_value(app):
+        student = app.student
+        strength = 0
+        if student.skills:
+            strength += 20
+        if student.resume:
+            strength += 20
+        if student.cgpa:
+            strength += 10
+        if student.degree and student.branch and student.college:
+            strength += 15
+        if student.linkedin_profile:
+            strength += 5
+        if student.github_profile:
+            strength += 5
+        if student.preferred_location:
+            strength += 5
+        return app.match_score * 0.6 + strength * 0.4
+
+    applications.sort(key=candidate_value, reverse=True)
+    return applications
+
 
 def home(request):
     if request.user.is_authenticated:
@@ -137,6 +175,9 @@ def student_dashboard(request):
             })
     matched_jobs.sort(key=lambda x: x['score'], reverse=True)
 
+    # Extract skills from resume if needed
+    student.update_resume_skills()
+
     # Profile strength
     strength = 0
     if student.skills:
@@ -163,10 +204,24 @@ def student_dashboard(request):
         strength += 5
     profile_strength = min(strength, 100)
 
+    # Current applications for tracking
+    applications = Application.objects.filter(student=student).select_related('job').order_by('-applied_at')
+    interviews = Interview.objects.filter(application__student=student).select_related('application__job')
+    notifications = Notification.objects.filter(user=request.user).order_by('-created_at')[:20]
+    messages_list = Message.objects.filter(receiver=request.user).order_by('-created_at')[:20]
+
+    # recommendations
+    recommended_jobs = recommend_jobs_for_student(student, top_n=6)
+
     return render(request, 'student_dashboard.html', {
         'student': student,
         'matched_jobs': matched_jobs,
-        'profile_strength': profile_strength
+        'profile_strength': profile_strength,
+        'applications': applications,
+        'interviews': interviews,
+        'notifications': notifications,
+        'messages': messages_list,
+        'recommended_jobs': recommended_jobs,
     })
 
 @login_required
@@ -181,13 +236,25 @@ def hr_dashboard(request):
     jobs = Job.objects.filter(posted_by=request.user)
     job_applications = []
     for job in jobs:
-        applications = Application.objects.filter(job=job).select_related('student__user')
+        apps = rank_applicants_for_job(job)
+        shortlisted = [a for a in apps if a.status == Application.STATUS_SHORTLISTED]
+        contacted = [a for a in apps if a.contacted_at]
         job_applications.append({
             'job': job,
-            'applications': applications
+            'applications': apps,
+            'shortlisted': shortlisted,
+            'contacted': contacted,
+            'ranked': apps,
         })
 
-    return render(request, 'hr_dashboard.html', {'job_applications': job_applications})
+    notifications = Notification.objects.filter(user=request.user).order_by('-created_at')[:20]
+    messages_list = Message.objects.filter(receiver=request.user).order_by('-created_at')[:20]
+
+    return render(request, 'hr_dashboard.html', {
+        'job_applications': job_applications,
+        'notifications': notifications,
+        'messages': messages_list
+    })
 
 @login_required
 def post_job(request):
@@ -245,6 +312,117 @@ def apply_job(request, job_id):
         return redirect('student_dashboard')
 
     score = calculate_match_score(student, job)
-    Application.objects.create(student=student, job=job, match_score=score)
+    application = Application.objects.create(student=student, job=job, match_score=score)
+
+    # create connection record automatically
+    Connection.objects.get_or_create(application=application)
+
+    # notify HR
+    Notification.objects.create(
+        user=job.posted_by,
+        message=f"New application from {request.user.username} for {job.title}."
+    )
+
     messages.success(request, f'Applied successfully! Match score: {score}%')
     return redirect('student_dashboard')
+
+
+@login_required
+def contact_candidate(request, application_id):
+    application = get_object_or_404(Application, id=application_id)
+    if application.job.posted_by != request.user:
+        messages.error(request, 'Permission denied.')
+        return redirect('hr_dashboard')
+
+    connection, created = Connection.objects.get_or_create(application=application)
+    connection.hr_contacted = True
+    connection.contacted_at = timezone.now()
+    connection.contact_note = request.POST.get('contact_note', connection.contact_note)
+    connection.save()
+
+    # message to candidate
+    Message.objects.create(
+        sender=request.user,
+        receiver=application.student.user,
+        job=application.job,
+        content=f"HR contacted you for {application.job.title}.\nMessage: {request.POST.get('message', 'Please check your dashboard')}"
+    )
+    Notification.objects.create(
+        user=application.student.user,
+        message=f"HR contacted you for {application.job.title}."
+    )
+
+    messages.success(request, 'Candidate contacted successfully.')
+    return redirect('hr_dashboard')
+
+
+@login_required
+def schedule_interview(request, application_id):
+    application = get_object_or_404(Application, id=application_id)
+    if application.job.posted_by != request.user:
+        messages.error(request, 'Permission denied.')
+        return redirect('hr_dashboard')
+
+    if request.method == 'POST':
+        datetime_str = request.POST.get('scheduled_at')
+        mode = request.POST.get('mode', Interview.MODE_ONLINE)
+        notes = request.POST.get('notes', '')
+
+        try:
+            scheduled_at = timezone.datetime.fromisoformat(datetime_str)
+        except Exception:
+            messages.error(request, 'Invalid datetime format.')
+            return redirect('hr_dashboard')
+
+        interview, _ = Interview.objects.update_or_create(
+            application=application,
+            defaults={
+                'scheduled_at': scheduled_at,
+                'mode': mode,
+                'notes': notes,
+                'status': Interview.STATUS_PENDING,
+            }
+        )
+
+        application.status = Application.STATUS_INTERVIEW
+        application.save()
+
+        Notification.objects.create(
+            user=application.student.user,
+            message=f"Interview scheduled for {application.job.title} on {scheduled_at}."
+        )
+
+        messages.success(request, 'Interview scheduled successfully.')
+        return redirect('hr_dashboard')
+
+    return redirect('hr_dashboard')
+
+
+@login_required
+def update_interview_status(request, interview_id):
+    interview = get_object_or_404(Interview, id=interview_id)
+    if request.user != interview.application.student.user and request.user != interview.application.job.posted_by:
+        messages.error(request, 'Permission denied.')
+        return redirect('home')
+
+    new_status = request.POST.get('status')
+    if new_status not in dict(Interview.STATUS_CHOICES):
+        messages.error(request, 'Invalid status.')
+        return redirect('home')
+
+    interview.status = new_status
+    interview.save()
+
+    if request.user == interview.application.student.user and new_status == Interview.STATUS_RESCHEDULE_REQUESTED:
+        Notification.objects.create(
+            user=interview.application.job.posted_by,
+            message=f"Student requested reschedule for interview on {interview.scheduled_at}."
+        )
+
+    Notification.objects.create(
+        user=interview.application.student.user,
+        message=f"Interview status updated to {new_status}."
+    )
+
+    messages.success(request, 'Interview status updated.')
+    return redirect('home')
