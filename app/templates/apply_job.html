@@ -1,0 +1,24 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card shadow-sm max-w-md mx-auto mt-5">
+    <div class="card-header bg-primary text-white">
+        <h4 class="mb-0">Apply for {{ job.title }}</h4>
+    </div>
+    <div class="card-body">
+        <p><strong>Company:</strong> {{ job.company }}</p>
+        <p><strong>Required Skills:</strong> {{ job.skills_required }}</p>
+        <p><strong>Education Required:</strong> {{ job.education_required }}</p>
+        {% if already_applied %}
+            <div class="alert alert-info">You have already applied for this job.</div>
+            <a href="{% url 'student_dashboard' %}" class="btn btn-secondary">Back to Dashboard</a>
+        {% else %}
+            <p>Are you sure you want to apply for this position?</p>
+            <form method="post">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-primary">Submit Application</button>
+                <a href="{% url 'student_dashboard' %}" class="btn btn-secondary">Cancel</a>
+            </form>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

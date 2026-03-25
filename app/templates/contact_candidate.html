@@ -1,0 +1,23 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card shadow-sm mt-5">
+    <div class="card-header bg-primary text-white">
+        <h4 class="mb-0">Contact Candidate: {{ application.student.user.get_full_name|default:application.student.user.username }}</h4>
+    </div>
+    <div class="card-body">
+        <form method="post">
+            {% csrf_token %}
+            <div class="mb-3">
+                <label for="message" class="form-label">Message to Candidate</label>
+                <textarea name="message" id="message" class="form-control" rows="4" required></textarea>
+            </div>
+            <div class="mb-3">
+                <label for="contact_note" class="form-label">Internal HR Note</label>
+                <textarea name="contact_note" id="contact_note" class="form-control" rows="2"></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary">Send Message & Mark Contacted</button>
+            <a href="{% url 'hr_dashboard' %}" class="btn btn-secondary">Cancel</a>
+        </form>
+    </div>
+</div>
+{% endblock %}

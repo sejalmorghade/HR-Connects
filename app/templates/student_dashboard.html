@@ -1,57 +1,144 @@
 {% extends 'base.html' %}
-
-{% block title %}Student Dashboard{% endblock %}
+{% block title %}Student AI Dashboard{% endblock %}
 
 {% block content %}
-<h2>Student Dashboard</h2>
-<a href="{% url 'update_student_profile' %}" class="btn btn-secondary mb-3">Update Profile</a>
+<div class="d-flex justify-content-between align-items-center mb-4 pb-2 border-bottom">
+    <h2>🎓 Student Portal</h2>
+    <a href="{% url 'update_student_profile' %}" class="btn btn-outline-primary">Edit Profile</a>
+</div>
+
 <div class="row">
+    <!-- Left Column -->
     <div class="col-md-4">
-        <div class="card">
-            <div class="card-header">Profile</div>
+        <div class="card shadow-sm mb-4 border-0">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">My Profile Info</h5>
+            </div>
             <div class="card-body">
-                <p><strong>Name:</strong> {{ student.user.first_name }} {{ student.user.last_name }}</p>
-                <p><strong>Email:</strong> {{ student.user.email }}</p>
-                <p><strong>Phone:</strong> {{ student.phone_number }}</p>
-                <p><strong>Address:</strong> {{ student.address }}</p>
-                <p><strong>Date of Birth:</strong> {{ student.date_of_birth }}</p>
-                <p><strong>Gender:</strong> {{ student.get_gender_display }}</p>
-                <p><strong>Degree:</strong> {{ student.degree }}</p>
-                <p><strong>Branch:</strong> {{ student.branch }}</p>
-                <p><strong>College:</strong> {{ student.college }}</p>
-                <p><strong>Passing Year:</strong> {{ student.passing_year }}</p>
-                <p><strong>CGPA:</strong> {{ student.cgpa }}</p>
-                <p><strong>Skills:</strong> {{ student.skills }}</p>
-                <p><strong>Preferred Location:</strong> {{ student.preferred_location }}</p>
-                {% if student.linkedin_profile %}
-                <p><strong>LinkedIn:</strong> <a href="{{ student.linkedin_profile }}" target="_blank">{{ student.linkedin_profile }}</a></p>
-                {% endif %}
-                {% if student.github_profile %}
-                <p><strong>GitHub:</strong> <a href="{{ student.github_profile }}" target="_blank">{{ student.github_profile }}</a></p>
-                {% endif %}
-                <p><strong>Resume:</strong> {% if student.resume %}{{ student.resume.name }}{% else %}Not uploaded{% endif %}</p>
-                <div class="progress">
-                    <div class="progress-bar progress-bar-width" role="progressbar" data-strength="{{ profile_strength }}">{{ profile_strength }}%</div>
+                <div class="mb-3 text-center">
+                    <div class="display-1 text-primary">👨‍🎓</div>
+                    <h5 class="mt-2">{{ student.user.first_name }} {{ student.user.last_name }}</h5>
+                    <p class="text-muted mb-0">{{ student.degree }} in {{ student.branch }}</p>
                 </div>
-                <small>Profile Strength</small>
+                <div class="progress mb-2" style="height: 25px;">
+                    <div class="progress-bar progress-bar-width bg-success" role="progressbar" data-strength="{{ profile_strength }}">{{ profile_strength }}% Profile Strength</div>
+                </div>
+                <hr>
+                <p><strong>🎓 College:</strong> {{ student.college }} ({{ student.passing_year }})</p>
+                <p><strong>💻 Skills:</strong> {{ student.skills }}</p>
+                <p><strong>📩 Contact:</strong> {{ student.phone_number }}</p>
+            </div>
+        </div>
+
+        <div class="card shadow-sm mb-4 border-primary">
+            <div class="card-header bg-white border-bottom-0">
+                <h5 class="text-primary mb-0"><i class="bi bi-robot"></i> Interactions & Inbox</h5>
+            </div>
+            <div class="card-body p-0">
+                <ul class="list-group list-group-flush text-sm">
+                {% if inbox_messages %}
+                    {% for msg in inbox_messages %}
+                    <li class="list-group-item fw-light">
+                        <strong>{{ msg.sender.username }}:</strong> {{ msg.content }}
+                        <br/>
+                        <a href="{% url 'reply_message' msg.id %}" class="btn btn-sm py-0 mt-1 btn-primary">Reply</a>
+                    </li>
+                    {% endfor %}
+                {% else %}
+                    <li class="list-group-item text-muted">No messages in inbox.</li>
+                {% endif %}
+                </ul>
             </div>
         </div>
     </div>
+
+    <!-- Right Column -->
     <div class="col-md-8">
-        <h3>Matched Jobs</h3>
-        {% for match in matched_jobs %}
-        <div class="card mb-3">
-            <div class="card-body">
-                <h5 class="card-title">{{ match.job.title }}</h5>
-                <p class="card-text">{{ match.job.company }}</p>
-                <p>Skills: {{ match.job.skills_required }}</p>
-                <p>Match: {{ match.score }}% - <span class="badge bg-{% if match.label == 'Highly Relevant' %}success{% elif match.label == 'Moderate Match' %}warning{% else %}danger{% endif %}">{{ match.label }}</span></p>
-                <a href="{% url 'apply_job' match.job.id %}" class="btn btn-primary">Apply</a>
+        
+        <div class="alert alert-info shadow-sm d-flex justify-content-between align-items-center">
+            <div>
+                <strong>🧠 AI Matching Logic:</strong> The platform scores you for jobs using real AI logic:<br/>
+                <span class="badge bg-primary">50% Skills</span> + <span class="badge bg-secondary">30% Resume Keyword Parsing</span> + <span class="badge bg-dark">20% Education Match</span>
             </div>
         </div>
-        {% empty %}
-        <p>No matched jobs yet.</p>
-        {% endfor %}
+
+        <!-- Job Applications Workflow -->
+        <div class="card shadow-sm mb-4 border-0">
+            <div class="card-header bg-dark text-white">
+                <h5 class="mb-0">🚀 My Active Applications Tracker</h5>
+            </div>
+            <div class="card-body bg-light">
+                {% if applications %}
+                    <div class="row">
+                    {% for app in applications %}
+                        <div class="col-md-6 mb-3">
+                            <div class="card h-100 border-1 border-secondary">
+                                <div class="card-body">
+                                    <h5 class="card-title text-primary">{{ app.job.title }}</h5>
+                                    <h6 class="card-subtitle mb-2 text-muted">{{ app.job.company }}</h6>
+                                    <hr class="my-1"/>
+                                    <p class="mb-1 fw-bold border border-info rounded px-2 py-1 bg-white text-center">Status: {{ app.status }}</p>
+                                    <p class="mb-0 text-center"><small>AI Fit Score: {{ app.match_score }}%</small></p>
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                    </div>
+                {% else %}
+                    <p class="text-muted text-center py-3">No applications tracked yet.</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Smart Job Recommendations -->
+        <h3 class="mb-3 text-primary border-bottom pb-2">Top AI Recommended Jobs</h3>
+        <div class="row">
+            {% for match in matched_jobs %}
+            <div class="col-md-6 mb-3">
+                <div class="card shadow-sm h-100 border-{% if match.label == 'Highly Relevant' %}success{% elif match.label == 'Moderate Match' %}warning{% else %}danger{% endif %} border-2">
+                    <div class="card-body">
+                        <h5 class="card-title fw-bold">{{ match.job.title }}</h5>
+                        <h6 class="card-subtitle mb-3 text-muted">at {{ match.job.company }}</h6>
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <span class="fs-5 fw-bold text-{% if match.label == 'Highly Relevant' %}success{% elif match.label == 'Moderate Match' %}warning{% else %}danger{% endif %}">
+                                {{ match.score }}% Fit
+                            </span>
+                            <span class="badge bg-dark px-2 py-1">{{ match.label }}</span>
+                        </div>
+                        <p class="card-text small text-muted text-truncate">Req: {{ match.job.skills_required }}</p>
+                        <hr class="my-2"/>
+                        <a href="{% url 'apply_job' match.job.id %}" class="btn btn-outline-primary w-100 mt-2">View & Apply</a>
+                    </div>
+                </div>
+            </div>
+            {% empty %}
+            <div class="col-12">
+                <div class="alert alert-warning">No recommended jobs matching your profile. Update your skills!</div>
+            </div>
+            {% endfor %}
+        </div>
+
+        {% if interviews %}
+        <div class="card shadow-sm mt-4 border-warning border-3">
+            <div class="card-header bg-warning text-dark fw-bold">📅 Upcoming Interviews</div>
+            <ul class="list-group list-group-flush">
+                {% for interview in interviews %}
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <div>
+                        <strong>{{ interview.application.job.title }}</strong><br/>
+                        <small>Mode: {{ interview.mode }} | On: {{ interview.scheduled_at }}</small>
+                    </div>
+                    {% if interview.status == 'Pending' %}
+                        <a href="{% url 'update_interview_status' interview.id %}" class="btn btn-sm btn-success">Confirm/Reschedule</a>
+                    {% else %}
+                        <span class="badge bg-secondary">{{ interview.status }}</span>
+                    {% endif %}
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+
     </div>
 </div>
 {% endblock %}

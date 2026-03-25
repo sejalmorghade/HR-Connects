@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card shadow-sm mt-5">
+    <div class="card-header bg-success text-white">
+        <h4 class="mb-0">Shortlist Candidate</h4>
+    </div>
+    <div class="card-body">
+        <p>Are you sure you want to shortlist <strong>{{ application.student.user.username }}</strong> for the <strong>{{ application.job.title }}</strong> position?</p>
+        <form method="post">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-success">Confirm Shortlist</button>
+            <a href="{% url 'hr_dashboard' %}" class="btn btn-secondary">Cancel</a>
+        </form>
+    </div>
+</div>
+{% endblock %}

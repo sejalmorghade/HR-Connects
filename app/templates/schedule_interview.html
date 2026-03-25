@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card shadow-sm mt-5">
+    <div class="card-header bg-warning text-dark">
+        <h4 class="mb-0">Schedule Interview</h4>
+    </div>
+    <div class="card-body">
+        <p>Scheduling for: <strong>{{ application.student.user.username }}</strong> - <strong>{{ application.job.title }}</strong></p>
+        <form method="post">
+            {% csrf_token %}
+            <div class="mb-3">
+                <label class="form-label">Date and Time</label>
+                <input type="datetime-local" name="scheduled_at" class="form-control" required>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Mode</label>
+                <select name="mode" class="form-select" required>
+                    <option value="Online">Online</option>
+                    <option value="Offline">Offline</option>
+                </select>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Notes / Link / Location</label>
+                <textarea name="notes" class="form-control" rows="3"></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary">Schedule Interview</button>
+            <a href="{% url 'hr_dashboard' %}" class="btn btn-secondary">Cancel</a>
+        </form>
+    </div>
+</div>
+{% endblock %}

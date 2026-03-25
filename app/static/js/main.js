@@ -1,2 +1,2 @@
-/* HR Connect Application Scripts */
-// Add your custom JavaScript here
+// Main JS file
+console.log('App loaded');

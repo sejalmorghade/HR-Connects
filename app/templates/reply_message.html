@@ -1,0 +1,23 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card shadow-sm mt-5">
+    <div class="card-header bg-primary text-white">
+        <h4 class="mb-0">Reply to Message</h4>
+    </div>
+    <div class="card-body">
+        <div class="alert alert-secondary">
+            <strong>Original from {{ original_msg.sender.username }}:</strong><br/>
+            {{ original_msg.content }}
+        </div>
+        <form method="post">
+            {% csrf_token %}
+            <div class="mb-3">
+                <label class="form-label">Your Reply</label>
+                <textarea name="content" class="form-control" rows="4" required placeholder="Type your message here..."></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary">Send Reply</button>
+            <a href="{% url 'home' %}" class="btn btn-secondary">Cancel</a>
+        </form>
+    </div>
+</div>
+{% endblock %}

@@ -1,3 +1,4 @@
+import re
 from django.db import models
 from django.contrib.auth.models import User
 
@@ -93,6 +94,7 @@ class Job(models.Model):
 class Application(models.Model):
     STATUS_APPLIED = 'Applied'
     STATUS_SHORTLISTED = 'Shortlisted'
+    STATUS_CONTACTED = 'Contacted'
     STATUS_INTERVIEW = 'Interview Scheduled'
     STATUS_SELECTED = 'Selected'
     STATUS_REJECTED = 'Rejected'
@@ -100,6 +102,7 @@ class Application(models.Model):
     STATUS_CHOICES = [
         (STATUS_APPLIED, 'Applied'),
         (STATUS_SHORTLISTED, 'Shortlisted'),
+        (STATUS_CONTACTED, 'Contacted'),
         (STATUS_INTERVIEW, 'Interview Scheduled'),
         (STATUS_SELECTED, 'Selected'),
         (STATUS_REJECTED, 'Rejected'),
@@ -115,6 +118,17 @@ class Application(models.Model):
 
     class Meta:
         unique_together = ('student', 'job')
+
+    def can_transition_to(self, new_status):
+        flow = {
+            self.STATUS_APPLIED: [self.STATUS_SHORTLISTED, self.STATUS_CONTACTED],
+            self.STATUS_SHORTLISTED: [self.STATUS_CONTACTED, self.STATUS_INTERVIEW],
+            self.STATUS_CONTACTED: [self.STATUS_INTERVIEW, self.STATUS_SELECTED, self.STATUS_REJECTED],
+            self.STATUS_INTERVIEW: [self.STATUS_SELECTED, self.STATUS_REJECTED],
+            self.STATUS_SELECTED: [],
+            self.STATUS_REJECTED: [],
+        }
+        return new_status in flow.get(self.status, [])
 
     def __str__(self):
         return f"{self.student} applied to {self.job} [{self.status}]"
@@ -184,6 +198,10 @@ class Notification(models.Model):
     message = models.CharField(max_length=255)
     is_read = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
+
+    @classmethod
+    def unread_count(cls, user):
+        return cls.objects.filter(user=user, is_read=False).count()
 
     def __str__(self):
         return f"{self.user.username}: {self.message[:40]}"

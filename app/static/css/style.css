@@ -1,8 +1,2 @@
-/* HR Connect Application Styles */
-/* Add your custom CSS here */
-
-.progress-bar-width {
-    width: 0;
-    transition: width 0.5s ease;
-}
-
+/* Custom styles */
+.progress-bar-width { transition: width 0.5s ease-in-out; }

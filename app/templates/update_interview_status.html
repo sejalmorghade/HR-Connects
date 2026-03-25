@@ -1,0 +1,24 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card shadow-sm mt-5">
+    <div class="card-header bg-secondary text-white">
+        <h4 class="mb-0">Update Interview Status</h4>
+    </div>
+    <div class="card-body">
+        <p>Interview for <strong>{{ interview.application.job.title }}</strong> on <strong>{{ interview.scheduled_at }}</strong></p>
+        <form method="post">
+            {% csrf_token %}
+            <div class="mb-3">
+                <label class="form-label">Status</label>
+                <select name="status" class="form-select" required>
+                    <option value="Confirmed" {% if interview.status == 'Confirmed' %}selected{% endif %}>Confirmed</option>
+                    <option value="Reschedule Requested" {% if interview.status == 'Reschedule Requested' %}selected{% endif %}>Request Reschedule</option>
+                    <option value="Completed" {% if interview.status == 'Completed' %}selected{% endif %}>Completed</option>
+                </select>
+            </div>
+            <button type="submit" class="btn btn-primary">Update Status</button>
+            <a href="{% url 'home' %}" class="btn btn-secondary">Cancel</a>
+        </form>
+    </div>
+</div>
+{% endblock %}

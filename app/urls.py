@@ -12,6 +12,10 @@ urlpatterns = [
     path('hr/post_job/', views.post_job, name='post_job'),
     path('apply/<int:job_id>/', views.apply_job, name='apply_job'),
     path('hr/contact/<int:application_id>/', views.contact_candidate, name='contact_candidate'),
+    path('hr/shortlist/<int:application_id>/', views.shortlist_candidate, name='shortlist_candidate'),
+    path('hr/set_result/<int:application_id>/', views.set_application_result, name='set_application_result'),
     path('hr/schedule_interview/<int:application_id>/', views.schedule_interview, name='schedule_interview'),
     path('interview/update/<int:interview_id>/', views.update_interview_status, name='update_interview_status'),
+    path('notifications/mark_read/', views.mark_notifications_read, name='mark_notifications_read'),
+    path('message/reply/<int:message_id>/', views.reply_message, name='reply_message'),
 ]

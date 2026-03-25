@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+
+{% block title %}Student Profile - HR View{% endblock %}
+
+{% block content %}
+<h2>Student Profile - {{ student.user.get_full_name|default:student.user.username }}</h2>
+<header class="mb-4">
+    <p>Email: {{ student.user.email }}</p>
+    <p>Phone: {{ student.phone_number }}</p>
+    <p>Degree: {{ student.degree }} {{ student.branch }} ({{ student.college }})</p>
+    <p>Skills: {{ student.skills }}</p>
+    <p>CGPA: {{ student.cgpa }}</p>
+    <p>Resume: {% if student.resume %}<a href="{{ student.resume.url }}" target="_blank">View</a>{% else %}Not uploaded{% endif %}</p>
+</header>
+
+<h3>Applications</h3>
+{% if applications %}
+    {% for app in applications %}
+    <div class="card mb-3">
+        <div class="card-body">
+            <p><strong>{{ app.job.title }}</strong> - {{ app.status }}</p>
+            <p>Match: {{ app.match_score }}%</p>
+            <p>Applied at: {{ app.applied_at }}</p>
+        </div>
+    </div>
+    {% endfor %}
+{% else %}
+    <p>No applications by this student yet.</p>
+{% endif %}
+
+{% endblock %}

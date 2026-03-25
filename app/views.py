@@ -212,6 +212,7 @@ def student_dashboard(request):
 
     # recommendations
     recommended_jobs = recommend_jobs_for_student(student, top_n=6)
+    unread_notifications = Notification.unread_count(request.user)
 
     return render(request, 'student_dashboard.html', {
         'student': student,
@@ -220,8 +221,9 @@ def student_dashboard(request):
         'applications': applications,
         'interviews': interviews,
         'notifications': notifications,
-        'messages': messages_list,
+        'inbox_messages': messages_list,
         'recommended_jobs': recommended_jobs,
+        'unread_notifications_count': unread_notifications,
     })
 
 @login_required
@@ -249,11 +251,13 @@ def hr_dashboard(request):
 
     notifications = Notification.objects.filter(user=request.user).order_by('-created_at')[:20]
     messages_list = Message.objects.filter(receiver=request.user).order_by('-created_at')[:20]
+    unread_notifications = Notification.unread_count(request.user)
 
     return render(request, 'hr_dashboard.html', {
         'job_applications': job_applications,
         'notifications': notifications,
-        'messages': messages_list
+        'inbox_messages': messages_list,
+        'unread_notifications_count': unread_notifications,
     })
 
 @login_required
@@ -301,12 +305,25 @@ def update_student_profile(request):
 
 @login_required
 def apply_job(request, job_id):
+    profile = Profile.objects.get(user=request.user)
+    if profile.role != 'student':
+        messages.error(request, 'Only students can apply to jobs.')
+        return redirect('home')
+
     try:
         student = Student.objects.get(user=request.user)
     except Student.DoesNotExist:
         return redirect('register')
 
     job = get_object_or_404(Job, id=job_id)
+
+    if request.method == 'GET':
+        already_applied = Application.objects.filter(student=student, job=job).exists()
+        return render(request, 'apply_job.html', {
+            'job': job,
+            'already_applied': already_applied,
+        })
+
     if Application.objects.filter(student=student, job=job).exists():
         messages.info(request, 'Already applied!')
         return redirect('student_dashboard')
@@ -334,6 +351,17 @@ def contact_candidate(request, application_id):
         messages.error(request, 'Permission denied.')
         return redirect('hr_dashboard')
 
+    if request.method == 'GET':
+        return render(request, 'contact_candidate.html', {'application': application})
+
+    if not application.can_transition_to(Application.STATUS_CONTACTED):
+        messages.error(request, 'Invalid transition for application status.')
+        return redirect('hr_dashboard')
+
+    application.status = Application.STATUS_CONTACTED
+    application.contacted_at = timezone.now()
+    application.save()
+
     connection, created = Connection.objects.get_or_create(application=application)
     connection.hr_contacted = True
     connection.contacted_at = timezone.now()
@@ -357,45 +385,118 @@ def contact_candidate(request, application_id):
 
 
 @login_required
+def shortlist_candidate(request, application_id):
+    application = get_object_or_404(Application, id=application_id)
+    if application.job.posted_by != request.user:
+        messages.error(request, 'Permission denied.')
+        return redirect('hr_dashboard')
+
+    if request.method == 'GET':
+        return render(request, 'shortlist_candidate.html', {'application': application})
+
+    if not application.can_transition_to(Application.STATUS_SHORTLISTED):
+        messages.error(request, 'Invalid status transition.')
+        return redirect('hr_dashboard')
+
+    application.status = Application.STATUS_SHORTLISTED
+    application.save()
+    Notification.objects.create(user=application.student.user, message=f"You are shortlisted for {application.job.title}.")
+    messages.success(request, 'Candidate shortlisted.')
+    return redirect('hr_dashboard')
+
+
+@login_required
+def set_application_result(request, application_id):
+    application = get_object_or_404(Application, id=application_id)
+    if application.job.posted_by != request.user:
+        messages.error(request, 'Permission denied.')
+        return redirect('hr_dashboard')
+
+    if request.method == 'GET':
+        return render(request, 'set_result.html', {'application': application})
+
+    result = request.POST.get('result')
+    if result not in [application.STATUS_SELECTED, application.STATUS_REJECTED]:
+        messages.error(request, 'Invalid result')
+        return redirect('hr_dashboard')
+
+    if not application.can_transition_to(result):
+        messages.error(request, 'Invalid status transition.')
+        return redirect('hr_dashboard')
+
+    application.status = result
+    application.save()
+    Notification.objects.create(user=application.student.user, message=f"Your application status changed to {result}.")
+    messages.success(request, 'Application result updated.')
+    return redirect('hr_dashboard')
+
+
+@login_required
+def mark_notifications_read(request):
+    notifications = Notification.objects.filter(user=request.user, is_read=False)
+    notifications.update(is_read=True)
+    return redirect(request.META.get('HTTP_REFERER', 'home'))
+
+
+@login_required
 def schedule_interview(request, application_id):
     application = get_object_or_404(Application, id=application_id)
     if application.job.posted_by != request.user:
         messages.error(request, 'Permission denied.')
         return redirect('hr_dashboard')
 
-    if request.method == 'POST':
-        datetime_str = request.POST.get('scheduled_at')
-        mode = request.POST.get('mode', Interview.MODE_ONLINE)
-        notes = request.POST.get('notes', '')
+    if request.method == 'GET':
+        return render(request, 'schedule_interview.html', {'application': application})
 
-        try:
-            scheduled_at = timezone.datetime.fromisoformat(datetime_str)
-        except Exception:
-            messages.error(request, 'Invalid datetime format.')
-            return redirect('hr_dashboard')
-
-        interview, _ = Interview.objects.update_or_create(
-            application=application,
-            defaults={
-                'scheduled_at': scheduled_at,
-                'mode': mode,
-                'notes': notes,
-                'status': Interview.STATUS_PENDING,
-            }
-        )
-
-        application.status = Application.STATUS_INTERVIEW
-        application.save()
-
-        Notification.objects.create(
-            user=application.student.user,
-            message=f"Interview scheduled for {application.job.title} on {scheduled_at}."
-        )
-
-        messages.success(request, 'Interview scheduled successfully.')
+    if not application.can_transition_to(Application.STATUS_INTERVIEW):
+        messages.error(request, 'Invalid transition for interview scheduling.')
         return redirect('hr_dashboard')
 
+    datetime_str = request.POST.get('scheduled_at')
+    mode = request.POST.get('mode', Interview.MODE_ONLINE)
+    notes = request.POST.get('notes', '')
+
+    try:
+        scheduled_at = timezone.datetime.fromisoformat(datetime_str)
+    except Exception:
+        messages.error(request, 'Invalid datetime format.')
+        return redirect('hr_dashboard')
+
+    interview, _ = Interview.objects.update_or_create(
+        application=application,
+        defaults={
+            'scheduled_at': scheduled_at,
+            'mode': mode,
+            'notes': notes,
+            'status': Interview.STATUS_PENDING,
+        }
+    )
+
+    application.status = Application.STATUS_INTERVIEW
+    application.save()
+
+    Notification.objects.create(
+        user=application.student.user,
+        message=f"Interview scheduled for {application.job.title} on {scheduled_at}."
+    )
+
+    messages.success(request, 'Interview scheduled successfully.')
     return redirect('hr_dashboard')
+
+
+@login_required
+def hr_view_student(request, student_id):
+    profile = Profile.objects.filter(user=request.user, role='hr').first()
+    if not profile:
+        messages.error(request, 'Unauthorized')
+        return redirect('home')
+
+    student = get_object_or_404(Student, id=student_id)
+    applications = Application.objects.filter(student=student).select_related('job').order_by('-applied_at')
+    return render(request, 'hr_view_student.html', {
+        'student': student,
+        'applications': applications,
+    })
 
 
 @login_required
@@ -404,6 +505,9 @@ def update_interview_status(request, interview_id):
     if request.user != interview.application.student.user and request.user != interview.application.job.posted_by:
         messages.error(request, 'Permission denied.')
         return redirect('home')
+
+    if request.method == 'GET':
+        return render(request, 'update_interview_status.html', {'interview': interview})
 
     new_status = request.POST.get('status')
     if new_status not in dict(Interview.STATUS_CHOICES):
@@ -426,3 +530,33 @@ def update_interview_status(request, interview_id):
 
     messages.success(request, 'Interview status updated.')
     return redirect('home')
+
+@login_required
+def reply_message(request, message_id):
+    original_msg = get_object_or_404(Message, id=message_id)
+    if request.user != original_msg.receiver:
+        messages.error(request, 'Permission denied.')
+        return redirect('home')
+        
+    if request.method == 'POST':
+        content = request.POST.get('content')
+        if content:
+            Message.objects.create(
+                sender=request.user,
+                receiver=original_msg.sender,
+                job=original_msg.job,
+                content=content
+            )
+            Notification.objects.create(
+                user=original_msg.sender,
+                message=f"New message from {request.user.username}."
+            )
+            messages.success(request, 'Reply sent successfully.')
+            
+            try:
+                profile = Profile.objects.get(user=request.user)
+                return redirect('student_dashboard' if profile.role == 'student' else 'hr_dashboard')
+            except Profile.DoesNotExist:
+                return redirect('home')
+                
+    return render(request, 'reply_message.html', {'original_msg': original_msg})
