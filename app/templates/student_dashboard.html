@@ -31,7 +31,7 @@
                 {% endif %}
                 <p><strong>Resume:</strong> {% if student.resume %}{{ student.resume.name }}{% else %}Not uploaded{% endif %}</p>
                 <div class="progress">
-                    <div class="progress-bar" role="progressbar" style="width: {{ profile_strength }}%">{{ profile_strength }}%</div>
+                    <div class="progress-bar progress-bar-width" role="progressbar" data-strength="{{ profile_strength }}">{{ profile_strength }}%</div>
                 </div>
                 <small>Profile Strength</small>
             </div>

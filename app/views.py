@@ -54,9 +54,12 @@ def home(request):
     return render(request, 'home.html')
 
 def register(request):
+    form_data = {}
     if request.method == 'POST':
         form = UserCreationForm(request.POST)
         role = request.POST.get('role')
+        form_data = request.POST.dict()
+
         if form.is_valid():
             try:
                 user = form.save()
@@ -96,7 +99,8 @@ def register(request):
             messages.error(request, 'Form is invalid. Please check the fields.')
     else:
         form = UserCreationForm()
-    return render(request, 'register.html', {'form': form})
+
+    return render(request, 'register.html', {'form': form, 'form_data': form_data})
 
 def login_view(request):
     if request.method == 'POST':
